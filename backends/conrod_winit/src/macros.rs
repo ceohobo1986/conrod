@@ -87,13 +87,23 @@ macro_rules! convert_key {
             winit::event::VirtualKeyCode::Numpad7 => conrod_core::input::keyboard::Key::NumPad7,
             winit::event::VirtualKeyCode::Numpad8 => conrod_core::input::keyboard::Key::NumPad8,
             winit::event::VirtualKeyCode::Numpad9 => conrod_core::input::keyboard::Key::NumPad9,
-            winit::event::VirtualKeyCode::NumpadComma => conrod_core::input::keyboard::Key::NumPadDecimal,
+            winit::event::VirtualKeyCode::NumpadComma => {
+                conrod_core::input::keyboard::Key::NumPadDecimal
+            }
             winit::event::VirtualKeyCode::Divide => conrod_core::input::keyboard::Key::NumPadDivide,
-            winit::event::VirtualKeyCode::Multiply => conrod_core::input::keyboard::Key::NumPadMultiply,
-            winit::event::VirtualKeyCode::Subtract => conrod_core::input::keyboard::Key::NumPadMinus,
+            winit::event::VirtualKeyCode::Multiply => {
+                conrod_core::input::keyboard::Key::NumPadMultiply
+            }
+            winit::event::VirtualKeyCode::Subtract => {
+                conrod_core::input::keyboard::Key::NumPadMinus
+            }
             winit::event::VirtualKeyCode::Add => conrod_core::input::keyboard::Key::NumPadPlus,
-            winit::event::VirtualKeyCode::NumpadEnter => conrod_core::input::keyboard::Key::NumPadEnter,
-            winit::event::VirtualKeyCode::NumpadEquals => conrod_core::input::keyboard::Key::NumPadEquals,
+            winit::event::VirtualKeyCode::NumpadEnter => {
+                conrod_core::input::keyboard::Key::NumPadEnter
+            }
+            winit::event::VirtualKeyCode::NumpadEquals => {
+                conrod_core::input::keyboard::Key::NumPadEquals
+            }
             winit::event::VirtualKeyCode::LShift => conrod_core::input::keyboard::Key::LShift,
             winit::event::VirtualKeyCode::LControl => conrod_core::input::keyboard::Key::LCtrl,
             winit::event::VirtualKeyCode::LAlt => conrod_core::input::keyboard::Key::LAlt,
@@ -103,15 +113,21 @@ macro_rules! convert_key {
             winit::event::VirtualKeyCode::Home => conrod_core::input::keyboard::Key::Home,
             winit::event::VirtualKeyCode::Insert => conrod_core::input::keyboard::Key::Insert,
             winit::event::VirtualKeyCode::Left => conrod_core::input::keyboard::Key::Left,
-            winit::event::VirtualKeyCode::LBracket => conrod_core::input::keyboard::Key::LeftBracket,
+            winit::event::VirtualKeyCode::LBracket => {
+                conrod_core::input::keyboard::Key::LeftBracket
+            }
             winit::event::VirtualKeyCode::Minus => conrod_core::input::keyboard::Key::Minus,
-            winit::event::VirtualKeyCode::Numlock => conrod_core::input::keyboard::Key::NumLockClear,
+            winit::event::VirtualKeyCode::Numlock => {
+                conrod_core::input::keyboard::Key::NumLockClear
+            }
             winit::event::VirtualKeyCode::PageDown => conrod_core::input::keyboard::Key::PageDown,
             winit::event::VirtualKeyCode::PageUp => conrod_core::input::keyboard::Key::PageUp,
             winit::event::VirtualKeyCode::Pause => conrod_core::input::keyboard::Key::Pause,
             winit::event::VirtualKeyCode::Period => conrod_core::input::keyboard::Key::Period,
             winit::event::VirtualKeyCode::Right => conrod_core::input::keyboard::Key::Right,
-            winit::event::VirtualKeyCode::RBracket => conrod_core::input::keyboard::Key::RightBracket,
+            winit::event::VirtualKeyCode::RBracket => {
+                conrod_core::input::keyboard::Key::RightBracket
+            }
             winit::event::VirtualKeyCode::Semicolon => conrod_core::input::keyboard::Key::Semicolon,
             winit::event::VirtualKeyCode::Slash => conrod_core::input::keyboard::Key::Slash,
             winit::event::VirtualKeyCode::Space => conrod_core::input::keyboard::Key::Space,
@@ -158,6 +174,9 @@ macro_rules! convert_window_event {
             None => return None,
         };
 
+        // dpi factor
+        let hidpi = $window.hidpi_factor();
+
         // Translate the coordinates from top-left-origin-with-y-down to centre-origin-with-y-up.
         let tx = |x: conrod_core::Scalar| x - win_w / 2.0;
         let ty = |y: conrod_core::Scalar| -(y - win_h / 2.0);
@@ -167,7 +186,8 @@ macro_rules! convert_window_event {
         let map_mouse = |button| convert_mouse_button!(button);
 
         match $event {
-            winit::event::WindowEvent::Resized(winit::dpi::LogicalSize { width, height }) => {
+            winit::event::WindowEvent::Resized(physical_size) => {
+                let winit::dpi::LogicalSize { width, height } = physical_size.to_logical::<f64>(hidpi);
                 Some(conrod_core::event::Input::Resize(width as _, height as _).into())
             },
 
@@ -184,7 +204,7 @@ macro_rules! convert_window_event {
             },
 
             winit::event::WindowEvent::Focused(focused) =>
-                Some(conrod_core::event::Input::Focus(focused).into()),
+                Some(conrod_core::event::Input::Focus(*focused).into()),
 
             winit::event::WindowEvent::KeyboardInput { input, .. } => {
                 input.virtual_keycode.map(|key| {
@@ -198,7 +218,7 @@ macro_rules! convert_window_event {
             },
 
             winit::event::WindowEvent::Touch(winit::event::Touch { phase, location, id, .. }) => {
-                let winit::dpi::LogicalPosition { x, y } = location;
+                let winit::dpi::LogicalPosition { x, y } = location.to_logical::<f64>(hidpi);
                 let phase = match phase {
                     winit::event::TouchPhase::Started => conrod_core::input::touch::Phase::Start,
                     winit::event::TouchPhase::Moved => conrod_core::input::touch::Phase::Move,
@@ -206,13 +226,13 @@ macro_rules! convert_window_event {
                     winit::event::TouchPhase::Ended => conrod_core::input::touch::Phase::End,
                 };
                 let xy = [tx(x), ty(y)];
-                let id = conrod_core::input::touch::Id::new(id);
+                let id = conrod_core::input::touch::Id::new(*id);
                 let touch = conrod_core::input::Touch { phase: phase, id: id, xy: xy };
                 Some(conrod_core::event::Input::Touch(touch).into())
             }
 
             winit::event::WindowEvent::CursorMoved { position, .. } => {
-                let winit::dpi::LogicalPosition { x, y } = position;
+                let winit::dpi::LogicalPosition { x, y } = position.to_logical::<f64>(hidpi);
                 let x = tx(x as conrod_core::Scalar);
                 let y = ty(y as conrod_core::Scalar);
                 let motion = conrod_core::input::Motion::MouseCursor { x: x, y: y };
@@ -220,7 +240,8 @@ macro_rules! convert_window_event {
             },
 
             winit::event::WindowEvent::MouseWheel { delta, .. } => match delta {
-                winit::event::MouseScrollDelta::PixelDelta(winit::dpi::LogicalPosition { x, y }) => {
+                winit::event::MouseScrollDelta::PixelDelta(logical_position) => {
+                let winit::dpi::LogicalPosition { x, y } = *logical_position;
                     let x = x as conrod_core::Scalar;
                     let y = -y as conrod_core::Scalar;
                     let motion = conrod_core::input::Motion::Scroll { x: x, y: y };
@@ -230,22 +251,19 @@ macro_rules! convert_window_event {
                 winit::event::MouseScrollDelta::LineDelta(x, y) => {
                     // This should be configurable (we should provide a LineDelta event to allow for this).
                     const ARBITRARY_POINTS_PER_LINE_FACTOR: conrod_core::Scalar = 10.0;
-                    let x = ARBITRARY_POINTS_PER_LINE_FACTOR * x as conrod_core::Scalar;
-                    let y = ARBITRARY_POINTS_PER_LINE_FACTOR * -y as conrod_core::Scalar;
+                    let x = ARBITRARY_POINTS_PER_LINE_FACTOR * *x as conrod_core::Scalar;
+                    let y = ARBITRARY_POINTS_PER_LINE_FACTOR * -*y as conrod_core::Scalar;
                     Some(conrod_core::event::Input::Motion(conrod_core::input::Motion::Scroll { x: x, y: y }).into())
                 },
             },
 
             winit::event::WindowEvent::MouseInput { state, button, .. } => match state {
                 winit::event::ElementState::Pressed =>
-                    Some(conrod_core::event::Input::Press(conrod_core::input::Button::Mouse(map_mouse(button))).into()),
+                    Some(conrod_core::event::Input::Press(conrod_core::input::Button::Mouse(map_mouse(*button))).into()),
                 winit::event::ElementState::Released =>
-                    Some(conrod_core::event::Input::Release(conrod_core::input::Button::Mouse(map_mouse(button))).into()),
+                    Some(conrod_core::event::Input::Release(conrod_core::input::Button::Mouse(map_mouse(*button))).into()),
             },
 
-            winit::event::WindowEvent::RedrawRequested => {
-                Some(conrod_core::event::Input::Redraw)
-            },
 
             _ => None,
         }
@@ -264,6 +282,8 @@ macro_rules! convert_event {
     ($event:expr, $window:expr) => {{
         match $event {
             winit::event::Event::WindowEvent { event, .. } => convert_window_event!(event, $window),
+            // Note: Hack
+            winit::event::Event::RedrawRequested(_) => Some(conrod_core::event::Input::Redraw),
             _ => None,
         }
     }};
@@ -279,14 +299,22 @@ macro_rules! convert_mouse_cursor {
     ($cursor:expr) => {{
         match $cursor {
             conrod_core::cursor::MouseCursor::Text => winit::window::CursorIcon::Text,
-            conrod_core::cursor::MouseCursor::VerticalText => winit::window::CursorIcon::VerticalText,
+            conrod_core::cursor::MouseCursor::VerticalText => {
+                winit::window::CursorIcon::VerticalText
+            }
             conrod_core::cursor::MouseCursor::Hand => winit::window::CursorIcon::Hand,
             conrod_core::cursor::MouseCursor::Grab => winit::window::CursorIcon::Grab,
             conrod_core::cursor::MouseCursor::Grabbing => winit::window::CursorIcon::Grabbing,
             conrod_core::cursor::MouseCursor::ResizeVertical => winit::window::CursorIcon::NsResize,
-            conrod_core::cursor::MouseCursor::ResizeHorizontal => winit::window::CursorIcon::EwResize,
-            conrod_core::cursor::MouseCursor::ResizeTopLeftBottomRight => winit::window::CursorIcon::NwseResize,
-            conrod_core::cursor::MouseCursor::ResizeTopRightBottomLeft => winit::window::CursorIcon::NeswResize,
+            conrod_core::cursor::MouseCursor::ResizeHorizontal => {
+                winit::window::CursorIcon::EwResize
+            }
+            conrod_core::cursor::MouseCursor::ResizeTopLeftBottomRight => {
+                winit::window::CursorIcon::NwseResize
+            }
+            conrod_core::cursor::MouseCursor::ResizeTopRightBottomLeft => {
+                winit::window::CursorIcon::NeswResize
+            }
             _ => winit::window::CursorIcon::Arrow,
         }
     }};
@@ -298,7 +326,9 @@ macro_rules! convert_mouse_cursor {
 macro_rules! conversion_fns {
     () => {
         /// Convert a `winit::event::VirtualKeyCode` to a `conrod_core::input::keyboard::Key`.
-        pub fn convert_key(keycode: winit::event::VirtualKeyCode) -> conrod_core::input::keyboard::Key {
+        pub fn convert_key(
+            keycode: winit::event::VirtualKeyCode,
+        ) -> conrod_core::input::keyboard::Key {
             convert_key!(keycode)
         }
 

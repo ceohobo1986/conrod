@@ -12,5 +12,5 @@ pub trait WinitWindow {
     /// Return the inner size of the window in logical pixels.
     fn get_inner_size(&self) -> Option<(u32, u32)>;
     /// Return the window's DPI factor so that we can convert from pixel values to scalar values.
-    fn hidpi_factor(&self) -> f32;
+    fn hidpi_factor(&self) -> f64;
 }
