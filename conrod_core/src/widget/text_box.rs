@@ -1,11 +1,11 @@
 //! A widget for displaying and mutating a one-line field of text.
 
-use {Color, Colorable, FontSize, Borderable, Positionable, Sizeable, Widget};
 use event;
 use input;
 use position::{Range, Rect, Scalar};
 use text;
 use widget;
+use {Borderable, Color, Colorable, FontSize, Positionable, Sizeable, Widget};
 
 /// A widget for displaying and mutating a small, one-line field of text, given by the user in the
 /// form of a `String`.
@@ -17,6 +17,8 @@ pub struct TextBox<'a> {
     common: widget::CommonBuilder,
     text: &'a str,
     style: Style,
+    /// Hides text by replacing with the specified character
+    hide_text: Option<&'a str>,
 }
 
 /// Unique graphical styling for the TextBox.
@@ -64,13 +66,13 @@ pub struct State {
 }
 
 impl<'a> TextBox<'a> {
-
     /// Construct a TextBox widget.
     pub fn new(text: &'a str) -> Self {
         TextBox {
             common: widget::CommonBuilder::default(),
             style: Style::default(),
             text: text,
+            hide_text: None,
         }
     }
 
@@ -95,13 +97,18 @@ impl<'a> TextBox<'a> {
         self
     }
 
-    builder_methods!{
+    /// Hide text by replacing with specified character
+    pub fn hide_text(mut self, s: &'a str) -> Self {
+        self.hide_text = Some(s);
+        self
+    }
+
+    builder_methods! {
         pub text_color { style.text_color = Some(Color) }
         pub font_size { style.font_size = Some(FontSize) }
         pub justify { style.justify = Some(text::Justify) }
         pub pad_text { style.text_padding = Some(Scalar) }
     }
-
 }
 
 /// Events produced by the `TextBox`.
@@ -130,8 +137,17 @@ impl<'a> Widget for TextBox<'a> {
 
     /// Update the state of the TextEdit.
     fn update(self, args: widget::UpdateArgs<Self>) -> Self::Event {
-        let widget::UpdateArgs { id, state, rect, style, ui, .. } = args;
-        let TextBox { text, .. } = self;
+        let widget::UpdateArgs {
+            id,
+            state,
+            rect,
+            style,
+            ui,
+            ..
+        } = args;
+        let TextBox {
+            text, hide_text, ..
+        } = self;
 
         let font_size = style.font_size(ui.theme());
         let border = style.border(ui.theme());
@@ -169,6 +185,7 @@ impl<'a> Widget for TextBox<'a> {
             .color(text_color)
             .justify(justify)
             .parent(id)
+            .and_then(hide_text, |w, s| w.hide_text(s))
             .set(state.ids.text_edit, ui)
         {
             events.push(Event::Update(new_string));
@@ -192,11 +209,10 @@ impl<'a> Widget for TextBox<'a> {
 
         events
     }
-
 }
 
 impl<'a> Borderable for TextBox<'a> {
-    builder_methods!{
+    builder_methods! {
         border { style.border = Some(Scalar) }
         border_color { style.border_color = Some(Color) }
     }
