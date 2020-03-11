@@ -1,5 +1,6 @@
 //! A widget for displaying and mutating multi-line text, given as a `String`.
 
+use copypasta::{ClipboardContext, ClipboardProvider};
 use cursor;
 use event;
 use input;
@@ -10,7 +11,6 @@ use utils;
 use widget;
 use widget::primitive::text::Wrap;
 use {Color, Colorable, FontSize, Positionable, Sizeable, Ui, Widget};
-use copypasta::{ClipboardContext, ClipboardProvider};
 
 /// A widget for displaying and mutating multi-line text, given as a `String`.
 ///
@@ -23,6 +23,8 @@ pub struct TextEdit<'a> {
     text: &'a str,
     style: Style,
     force_cursor: Option<text::cursor::Index>,
+    /// Hides text by replacing with the specified character
+    hide_text: Option<&'a str>,
 }
 
 /// Unique graphical styling for the TextEdit.
@@ -107,6 +109,7 @@ impl<'a> TextEdit<'a> {
             style: Style::default(),
             text: text,
             force_cursor: None,
+            hide_text: None,
         }
     }
 
@@ -170,6 +173,12 @@ impl<'a> TextEdit<'a> {
     /// Move cursor to the end
     pub fn cursor_pos(mut self, index: text::cursor::Index) -> Self {
         self.force_cursor = Some(index);
+        self
+    }
+
+    /// Hide text by replacing with specified character
+    pub fn hide_text(mut self, s: &'a str) -> Self {
+        self.hide_text = Some(s);
         self
     }
 
@@ -252,7 +261,9 @@ impl<'a> Widget for TextEdit<'a> {
             ui,
             ..
         } = args;
-        let TextEdit { text, .. } = self;
+        let TextEdit {
+            text, hide_text, ..
+        } = self;
         let mut text = std::borrow::Cow::Borrowed(text);
 
         // Retrieve the `font_id`, as long as a valid `Font` for it still exists.
@@ -491,16 +502,15 @@ impl<'a> Widget for TextEdit<'a> {
                             let line_infos = state.line_infos.iter().cloned();
 
                             let (start, end) = (
-                                cursor_idx.previous_word_start(&text, line_infos.clone())
+                                cursor_idx
+                                    .previous_word_start(&text, line_infos.clone())
                                     .unwrap_or(cursor_idx), // account for the first position of the text
-                                cursor_idx.next_word_end(&text, line_infos)
+                                cursor_idx
+                                    .next_word_end(&text, line_infos)
                                     .unwrap_or(cursor_idx), // account for the last position of the text
                             );
 
-                            cursor = Cursor::Selection {
-                                start,
-                                end,
-                            };
+                            cursor = Cursor::Selection { start, end };
                         }
                     }
                 }
@@ -707,7 +717,8 @@ impl<'a> Widget for TextEdit<'a> {
                             if press.modifiers.contains(input::keyboard::ModifierKey::CTRL) {
                                 match cursor {
                                     Cursor::Selection { start, end } => {
-                                        let mut clipboard: ClipboardContext = ClipboardContext::new().unwrap();
+                                        let mut clipboard: ClipboardContext =
+                                            ClipboardContext::new().unwrap();
 
                                         let (start_idx, end_idx) = {
                                             let line_infos = state.line_infos.iter().cloned();
@@ -764,7 +775,8 @@ impl<'a> Widget for TextEdit<'a> {
                         input::Key::V => {
                             // Paste selected text at the current cursor position on ctrl+v.
                             if press.modifiers.contains(input::keyboard::ModifierKey::CTRL) {
-                                let mut clipboard: ClipboardContext = ClipboardContext::new().unwrap();
+                                let mut clipboard: ClipboardContext =
+                                    ClipboardContext::new().unwrap();
                                 let font = ui.fonts.get(font_id).unwrap();
                                 let content = &clipboard.get_contents().unwrap_or(String::from(""));
 
@@ -943,9 +955,15 @@ impl<'a> Widget for TextEdit<'a> {
             y: text_y_range,
         };
 
+        // TODO: don't create new String every update
+        let hide_text = hide_text.map(|s| s.repeat(text.chars().count()));
+        let display_text = match hide_text.as_ref() {
+            Some(t) => std::ops::Deref::deref(t),
+            None => &text,
+        };
         match line_wrap {
-            Wrap::Whitespace => widget::Text::new(&text).wrap_by_word(),
-            Wrap::Character => widget::Text::new(&text).wrap_by_character(),
+            Wrap::Whitespace => widget::Text::new(display_text).wrap_by_word(),
+            Wrap::Character => widget::Text::new(display_text).wrap_by_character(),
         }
         .font_id(font_id)
         .wh(text_rect.dim())
