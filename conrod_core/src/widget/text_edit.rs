@@ -989,7 +989,7 @@ impl<'a> Widget for TextEdit<'a> {
 
         let (cursor_x, cursor_y_range) = {
             let font = ui.fonts.get(font_id).unwrap();
-            cursor_xy_at(cursor_idx, &text, &state.line_infos, font).unwrap_or_else(|| {
+            cursor_xy_at(cursor_idx, display_text, &state.line_infos, font).unwrap_or_else(|| {
                 let x = rect.left();
                 let y = Range::new(0.0, font_size as Scalar).align_to(y_align, rect.y);
                 (x, y)
