@@ -264,6 +264,15 @@ impl<'a> Widget for TextEdit<'a> {
         let TextEdit {
             text, hide_text, ..
         } = self;
+
+        // TODO: don't create new String every update
+        let hidden_text = hide_text.map(|s| s.repeat(text.chars().count()));
+        let display_text = match hidden_text.as_ref() {
+            Some(t) => std::ops::Deref::deref(t),
+            None => text,
+        };
+
+        let mut display_text = std::borrow::Cow::Borrowed(display_text);
         let mut text = std::borrow::Cow::Borrowed(text);
 
         // Retrieve the `font_id`, as long as a valid `Font` for it still exists.
@@ -307,7 +316,7 @@ impl<'a> Widget for TextEdit<'a> {
             let maybe_new_line_infos = {
                 let line_info_slice = &state.line_infos[..];
                 let font = ui.fonts.get(font_id).unwrap();
-                let new_line_infos = line_infos(&text, font, font_size, line_wrap, rect.w());
+                let new_line_infos = line_infos(&display_text, font, font_size, line_wrap, rect.w());
                 match utils::write_if_different(line_info_slice, new_line_infos) {
                     std::borrow::Cow::Owned(new) => Some(new),
                     _ => None,
@@ -424,7 +433,8 @@ impl<'a> Widget for TextEdit<'a> {
                            cursor: Cursor,
                            text: &str,
                            infos: &[text::line::Info],
-                           font: &text::Font|
+                           font: &text::Font,
+                           display_text: Option<&str>|
          -> Option<(String, Cursor, std::vec::Vec<text::line::Info>)> {
             let string_char_count = string.chars().count();
 
@@ -456,8 +466,11 @@ impl<'a> Widget for TextEdit<'a> {
             };
 
             // Calculate the new `line_infos` for the `new_text`.
-            let new_line_infos: Vec<_> =
-                { line_infos(&new_text, font, font_size, line_wrap, rect.w()).collect() };
+            let new_line_infos: Vec<_> = {
+                let hidden_text = hide_text.map(|s| s.repeat(new_text.chars().count()));
+                let hidden_text_ref = hidden_text.as_deref().unwrap_or(&new_text);
+                line_infos(hidden_text_ref, font, font_size, line_wrap, rect.w()).collect()
+            };
 
             // Check that the new text would not exceed the `inner_rect` bounds.
             let num_lines = new_line_infos.len();
@@ -496,17 +509,17 @@ impl<'a> Widget for TextEdit<'a> {
                         let abs_xy = utils::vec2_add(click.xy, rect.xy());
                         let infos = &state.line_infos;
                         let font = ui.fonts.get(font_id).unwrap();
-                        let closest = closest_cursor_index_and_xy(abs_xy, &text, infos, font);
+                        let closest = closest_cursor_index_and_xy(abs_xy, &display_text, infos, font);
 
                         if let Some((cursor_idx, _)) = closest {
                             let line_infos = state.line_infos.iter().cloned();
 
                             let (start, end) = (
                                 cursor_idx
-                                    .previous_word_start(&text, line_infos.clone())
+                                    .previous_word_start(&display_text, line_infos.clone())
                                     .unwrap_or(cursor_idx), // account for the first position of the text
                                 cursor_idx
-                                    .next_word_end(&text, line_infos)
+                                    .next_word_end(&display_text, line_infos)
                                     .unwrap_or(cursor_idx), // account for the last position of the text
                             );
 
@@ -521,7 +534,7 @@ impl<'a> Widget for TextEdit<'a> {
                         let abs_xy = utils::vec2_add(rel_xy, rect.xy());
                         let infos = &state.line_infos;
                         let font = ui.fonts.get(font_id).unwrap();
-                        let closest = closest_cursor_index_and_xy(abs_xy, &text, infos, font);
+                        let closest = closest_cursor_index_and_xy(abs_xy, &display_text, infos, font);
                         if let Some((closest_cursor, _)) = closest {
                             cursor = Cursor::Idx(closest_cursor);
                         }
@@ -548,11 +561,11 @@ impl<'a> Widget for TextEdit<'a> {
                                             cursor_idx.previous(line_infos)
                                         }
                                         (input::Key::Backspace, true) => {
-                                            cursor_idx.previous_word_start(&text, line_infos)
+                                            cursor_idx.previous_word_start(&display_text, line_infos)
                                         }
                                         (input::Key::Delete, false) => cursor_idx.next(line_infos),
                                         (input::Key::Delete, true) => {
-                                            cursor_idx.next_word_end(&text, line_infos)
+                                            cursor_idx.next_word_end(&display_text, line_infos)
                                         }
                                         _ => unreachable!(),
                                     }
@@ -584,16 +597,23 @@ impl<'a> Widget for TextEdit<'a> {
                                         .expect("char index was out of range")
                                 };
                                 cursor = Cursor::Idx(new_cursor_idx);
-                                *text.to_mut() = text
-                                    .chars()
-                                    .take(start_idx)
-                                    .chain(text.chars().skip(end_idx))
-                                    .collect();
+
+                                *text.to_mut() = text.chars()
+                                .take(start_idx)
+                                .chain(text.chars().skip(end_idx))
+                                .collect();
+
+                                *display_text.to_mut() = 
+                                 hide_text.map(|s| s.repeat(text.chars().count())).unwrap_or(text.to_string()).chars()
+                                 .take(start_idx)
+                                 .chain(text.chars().skip(end_idx))
+                                 .collect();
+
                                 state.update(|state| {
                                     let font = ui.fonts.get(font_id).unwrap();
                                     let w = rect.w();
                                     state.line_infos =
-                                        line_infos(&text, font, font_size, line_wrap, w).collect();
+                                        line_infos(&display_text, font, font_size, line_wrap, w).collect();
                                 });
                             }
                         }
@@ -618,16 +638,16 @@ impl<'a> Widget for TextEdit<'a> {
                                 let line_infos = state.line_infos.iter().cloned();
                                 match (key, move_word) {
                                     (input::Key::Left, true) => {
-                                        cursor_idx.previous_word_start(&text, line_infos)
+                                        cursor_idx.previous_word_start(&display_text, line_infos)
                                     }
                                     (input::Key::Right, true) => {
-                                        cursor_idx.next_word_end(&text, line_infos)
+                                        cursor_idx.next_word_end(&display_text, line_infos)
                                     }
                                     (input::Key::Left, false) => cursor_idx.previous(line_infos),
                                     (input::Key::Right, false) => cursor_idx.next(line_infos),
 
                                     // Up/Down movement
-                                    _ => cursor_xy_at(cursor_idx, &text, &state.line_infos, font)
+                                    _ => cursor_xy_at(cursor_idx, &display_text, &state.line_infos, font)
                                         .and_then(|(x_pos, _)| {
                                             let text::cursor::Index { line, .. } = cursor_idx;
                                             let next_line = match key {
@@ -638,7 +658,7 @@ impl<'a> Widget for TextEdit<'a> {
                                             closest_cursor_index_on_line(
                                                 x_pos,
                                                 next_line,
-                                                &text,
+                                                &display_text,
                                                 &state.line_infos,
                                                 font,
                                             )
@@ -678,9 +698,9 @@ impl<'a> Widget for TextEdit<'a> {
                                                 let line_infos = state.line_infos.iter().cloned();
                                                 match key {
                                                     input::Key::Left | input::Key::Up => cursor_idx
-                                                        .previous_word_start(&text, line_infos),
+                                                        .previous_word_start(&display_text, line_infos),
                                                     input::Key::Right | input::Key::Down => {
-                                                        cursor_idx.next_word_end(&text, line_infos)
+                                                        cursor_idx.next_word_end(&display_text, line_infos)
                                                     }
                                                     _ => unreachable!(),
                                                 }
@@ -701,7 +721,7 @@ impl<'a> Widget for TextEdit<'a> {
                                     let line_infos = state.line_infos.iter().cloned();
                                     text::cursor::index_before_char(
                                         line_infos,
-                                        text.chars().count(),
+                                        display_text.chars().count(),
                                     )
                                     .expect("char index was out of range")
                                 };
@@ -787,11 +807,15 @@ impl<'a> Widget for TextEdit<'a> {
                                         &text,
                                         &state.line_infos,
                                         font,
+                                        hide_text
                                     ) {
                                         Some((new_text, new_cursor, new_line_infos)) => {
-                                            *text.to_mut() = new_text;
+                                            *display_text.to_mut() = 
+                                            hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or(new_text.clone());
                                             cursor = new_cursor;
                                             state.update(|state| state.line_infos = new_line_infos);
+
+                                            *text.to_mut() = new_text;
                                         }
                                         _ => (),
                                     }
@@ -834,9 +858,12 @@ impl<'a> Widget for TextEdit<'a> {
 
                         input::Key::Return => {
                             let font = ui.fonts.get(font_id).unwrap();
-                            match insert_text("\n", cursor, &text, &state.line_infos, font) {
+                            match insert_text("\n", cursor, &text, &state.line_infos, font,hide_text) {
                                 Some((new_text, new_cursor, new_line_infos)) => {
-                                    *text.to_mut() = new_text;
+                                                                    *display_text.to_mut() = 
+                                 hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or(new_text.clone());
+
+                                 *text.to_mut() = new_text;
                                     cursor = new_cursor;
                                     state.update(|state| state.line_infos = new_line_infos);
                                 }
@@ -877,8 +904,11 @@ impl<'a> Widget for TextEdit<'a> {
                     }
 
                     let font = ui.fonts.get(font_id).unwrap();
-                    match insert_text(&string, cursor, &text, &state.line_infos, font) {
+                    match insert_text(&string, cursor, &text, &state.line_infos, font,hide_text) {
                         Some((new_text, new_cursor, new_line_infos)) => {
+                            *display_text.to_mut() = 
+                            hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or(new_text.clone());
+
                             *text.to_mut() = new_text;
                             cursor = new_cursor;
                             state.update(|state| state.line_infos = new_line_infos);
@@ -955,15 +985,9 @@ impl<'a> Widget for TextEdit<'a> {
             y: text_y_range,
         };
 
-        // TODO: don't create new String every update
-        let hide_text = hide_text.map(|s| s.repeat(text.chars().count()));
-        let display_text = match hide_text.as_ref() {
-            Some(t) => std::ops::Deref::deref(t),
-            None => &text,
-        };
         match line_wrap {
-            Wrap::Whitespace => widget::Text::new(display_text).wrap_by_word(),
-            Wrap::Character => widget::Text::new(display_text).wrap_by_character(),
+            Wrap::Whitespace => widget::Text::new(&display_text).wrap_by_word(),
+            Wrap::Character => widget::Text::new(&display_text).wrap_by_character(),
         }
         .font_id(font_id)
         .wh(text_rect.dim())
@@ -989,7 +1013,7 @@ impl<'a> Widget for TextEdit<'a> {
 
         let (cursor_x, cursor_y_range) = {
             let font = ui.fonts.get(font_id).unwrap();
-            cursor_xy_at(cursor_idx, display_text, &state.line_infos, font).unwrap_or_else(|| {
+            cursor_xy_at(cursor_idx, &display_text, &state.line_infos, font).unwrap_or_else(|| {
                 let x = rect.left();
                 let y = Range::new(0.0, font_size as Scalar).align_to(y_align, rect.y);
                 (x, y)
@@ -1036,7 +1060,7 @@ impl<'a> Widget for TextEdit<'a> {
 
             let selected_rects: Vec<Rect> = {
                 let line_infos = state.line_infos.iter().cloned();
-                let lines = line_infos.clone().map(|info| &text[info.byte_range()]);
+                let lines = line_infos.clone().map(|info| &display_text[info.byte_range()]);
                 let line_rects = text::line::rects(
                     line_infos.clone(),
                     font_size,
