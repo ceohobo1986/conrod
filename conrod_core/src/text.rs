@@ -1216,8 +1216,8 @@ pub mod line {
             // Check for a line wrap.
             if width > max_width {
                 match last_whitespace_start {
-                    Some(Last { byte, char, width_before }) => {
-                        let break_ = Break::Wrap { byte: byte, char: char, len_bytes: 1 };
+                    Some((Last { byte, char, width_before }, len_bytes)) => {
+                        let break_ = Break::Wrap { byte: byte, char: char, len_bytes };
                         return (break_, width_before);
                     },
                     None => {
@@ -1229,7 +1229,7 @@ pub mod line {
 
             // Check for a new whitespace.
             if ch.is_whitespace() {
-                last_whitespace_start = Some(Last { byte: byte_i, char: char_i, width_before: width });
+                last_whitespace_start = Some((Last { byte: byte_i, char: char_i, width_before: width }, ch.len_utf8()));
             }
 
             width = new_width;
