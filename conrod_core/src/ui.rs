@@ -70,13 +70,19 @@ pub struct Ui {
     maybe_background_color: Option<Color>,
     /// The order in which widgets from the `widget_graph` are drawn.
     depth_order: graph::DepthOrder,
+    /// The number of updated widgets encountered so far.
+    ///
+    /// Used to maintain the depth order.
+    updated_widget_count: usize,
     /// The set of widgets that have been updated since the beginning of the `set_widgets` stage.
-    updated_widgets: fnv::FnvHashSet<widget::Id>,
+    ///
+    /// The mapped boolean value determines whether the widget needed to be redrawn or not.
+    updated_widgets: fnv::FnvHashMap<widget::Id, bool>,
     /// The `updated_widgets` for the previous `set_widgets` stage.
     ///
     /// We use this to compare against the newly generated `updated_widgets` to see whether or not
     /// we require re-drawing.
-    prev_updated_widgets: fnv::FnvHashSet<widget::Id>,
+    prev_updated_widgets: fnv::FnvHashMap<widget::Id, bool>,
     /// Scroll events that have been emitted during a call to `Ui::set_widgets`. These are usually
     /// emitted by some widget like the `Scrollbar`.
     ///
@@ -179,10 +185,10 @@ impl Ui {
             maybe_widgets_capacity.map_or_else(
                 || (Graph::new(),
                    graph::DepthOrder::new(),
-                   fnv::FnvHashSet::default()),
+                   fnv::FnvHashMap::default()),
                 |n| (Graph::with_node_capacity(n),
                      graph::DepthOrder::with_node_capacity(n),
-                     std::collections::HashSet::with_capacity_and_hasher(n,
+                     std::collections::HashMap::with_capacity_and_hasher(n,
                         fnv::FnvBuildHasher::default())));
 
         let window = widget_graph.add_placeholder();
@@ -200,6 +206,7 @@ impl Ui {
             redraw_count: AtomicUsize::new(SAFE_REDRAW_COUNT as usize),
             maybe_background_color: None,
             depth_order: depth_order,
+            updated_widget_count: 0,
             updated_widgets: updated_widgets,
             prev_updated_widgets: prev_updated_widgets,
             global_input: input::Global::new(),
@@ -279,7 +286,7 @@ impl Ui {
     ///
     /// This set indicates which widgets have been instantiated since the beginning of the most
     /// recent `Ui::set_widgets` call.
-    pub fn updated_widgets(&self) -> &fnv::FnvHashSet<widget::Id> {
+    pub fn updated_widgets(&self) -> &fnv::FnvHashMap<widget::Id, bool> {
         &self.updated_widgets
     }
 
@@ -287,7 +294,7 @@ impl Ui {
     ///
     /// This set indicates which widgets have were instantiated during the previous call to
     /// `Ui::set_widgets`.
-    pub fn prev_updated_widgets(&self) -> &fnv::FnvHashSet<widget::Id> {
+    pub fn prev_updated_widgets(&self) -> &fnv::FnvHashMap<widget::Id, bool> {
         &self.prev_updated_widgets
     }
 
@@ -1057,9 +1064,11 @@ impl Ui {
         // Move the previous `updated_widgets` to `prev_updated_widgets` and clear
         // `updated_widgets` so that we're ready to store the newly updated widgets.
         {
+            self.updated_widget_count = 0;
             let Ui { ref mut updated_widgets, ref mut prev_updated_widgets, .. } = *self;
             std::mem::swap(updated_widgets, prev_updated_widgets);
             updated_widgets.clear();
+
         }
 
         let mut ui_cell = UiCell { ui: self };
@@ -1355,22 +1364,23 @@ pub fn infer_parent_unchecked(ui: &Ui, x_pos: Position, y_pos: Position) -> widg
 pub fn pre_update_cache(ui: &mut Ui, widget: widget::PreUpdateCache) {
     ui.maybe_prev_widget_id = Some(widget.id);
     ui.maybe_current_parent_id = widget.maybe_parent_id;
-    let widget_id = widget.id;
-    ui.widget_graph.pre_update_cache(ui.window, widget, ui.updated_widgets.len());
-
-    // Add the widget's `widget::Id` to the set of updated widgets.
-    ui.updated_widgets.insert(widget_id);
+    ui.widget_graph.pre_update_cache(ui.window, widget, ui.updated_widget_count);
+    ui.updated_widget_count += 1;
 }
 
 /// Cache some `PostUpdateCache` widget data into the widget graph.
 /// Set the widget that is being cached as the new `prev_widget`.
 /// Set the widget's parent as the new `current_parent`.
-pub fn post_update_cache<W>(ui: &mut Ui, widget: widget::PostUpdateCache<W>)
+pub fn post_update_cache<W>(ui: &mut Ui, requires_redraw: bool, widget: widget::PostUpdateCache<W>)
     where W: Widget,
           W::State: 'static,
           W::Style: 'static,
 {
     ui.maybe_prev_widget_id = Some(widget.id);
     ui.maybe_current_parent_id = widget.maybe_parent_id;
+    let widget_id = widget.id;
     ui.widget_graph.post_update_cache(widget);
+
+    // Add the widget's `widget::Id` to the set of updated widgets.
+    ui.updated_widgets.insert(widget_id, requires_redraw);
 }

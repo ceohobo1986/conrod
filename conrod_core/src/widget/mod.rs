@@ -1199,7 +1199,7 @@ fn set_widget<'a, 'b, W>(widget: W, id: Id, ui: &'a mut UiCell<'b>) -> W::Event
 
     // Finally, cache the `Widget`'s newly updated `State` and `Style` within the `ui`'s
     // `widget_graph`.
-    ui::post_update_cache::<W>(ui, PostUpdateCache {
+    ui::post_update_cache::<W>(ui, requires_redraw, PostUpdateCache {
         id: id,
         maybe_parent_id: maybe_parent_id,
         state: unique_state,
