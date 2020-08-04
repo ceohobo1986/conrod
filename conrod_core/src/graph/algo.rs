@@ -223,7 +223,7 @@ fn cropped_area_of_widget_maybe_within_depth(graph: &Graph,
 /// depth_children for the total bounding box. This should use a proper `Dfs` type with it's own
 /// stack for safer traversal that won't blow the stack on hugely deep GUIs.
 pub fn kids_bounding_box(graph: &Graph,
-                         prev_updated: &fnv::FnvHashSet<widget::Id>,
+                         prev_updated: &fnv::FnvHashMap<widget::Id, bool>,
                          idx: widget::Id) -> Option<Rect>
 {
     // When traversing the `depth_kids`, we only want to visit those who:
@@ -232,7 +232,7 @@ pub fn kids_bounding_box(graph: &Graph,
     // call to `Ui::set_widgets`.
     let kid_filter = &|g: &Graph, _e, n| -> bool {
         let is_not_graphic_kid = !g.graphic_parent(n).is_some();
-        let is_set = prev_updated.contains(&n);
+        let is_set = prev_updated.contains_key(&n);
         is_not_graphic_kid && is_set
     };
 

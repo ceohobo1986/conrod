@@ -54,7 +54,7 @@ impl DepthOrder {
     pub fn update(&mut self,
                   graph: &Graph,
                   root: widget::Id,
-                  updated_widgets: &fnv::FnvHashSet<widget::Id>)
+                  updated_widgets: &fnv::FnvHashMap<widget::Id, bool>)
     {
         let DepthOrder { ref mut indices, ref mut floating } = *self;
 
@@ -92,13 +92,13 @@ impl DepthOrder {
 /// Recursive function for visiting all nodes within the dag.
 fn visit_by_depth(graph: &Graph,
                   idx: widget::Id,
-                  updated_widgets: &fnv::FnvHashSet<widget::Id>,
+                  updated_widgets: &fnv::FnvHashMap<widget::Id, bool>,
                   depth_order: &mut Vec<widget::Id>,
                   floating_deque: &mut Vec<widget::Id>)
 {
     // First, if the current node is a widget and it was set in the current `set_widgets` stage,
     // store its index.
-    match graph.widget(idx).is_some() && updated_widgets.contains(&idx) {
+    match graph.widget(idx).is_some() && updated_widgets.contains_key(&idx) {
         true => depth_order.push(idx),
         // If the current node is not an updated widget, we're done with this branch.
         false => return,
