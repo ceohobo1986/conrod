@@ -264,19 +264,18 @@ impl<'a> Text<'a> {
         let trans_y = |y: Scalar| ((-y) + window_dim[1] / 2.0) * dpi_factor as Scalar;
 
         // Produce the text layout iterators.
-        let line_infos = line_infos.iter().cloned();
-        let lines = line_infos.clone().map(|info| &text[info.byte_range()]);
-        let line_rects = text::line::rects(line_infos, font_size, rect,
+        let lines = line_infos.iter().map(|info| &text[info.byte_range()]);
+        let line_rects = text::line::rects(line_infos.iter(), font_size, rect,
                                            justify, y_align, line_spacing);
 
         // Clear the existing glyphs and fill the buffer with glyphs for this Text.
         positioned_glyphs.clear();
         let scale = text::f32_pt_to_scale(font_size as f32 * dpi_factor);
-        for (line, line_rect) in lines.zip(line_rects) {
+        lines.zip(line_rects).for_each(|(line, line_rect)| {
             let (x, y) = (trans_x(line_rect.left()) as f32, trans_y(line_rect.bottom()) as f32);
             let point = text::rt::Point { x: x, y: y };
-            positioned_glyphs.extend(font.layout(line, scale, point).map(|g| g.standalone()));
-        }
+            positioned_glyphs.extend(font.layout(line, scale, point));
+        });
 
         positioned_glyphs
     }
@@ -358,7 +357,7 @@ impl<'a> Primitives<'a> {
                             ];
                             let cap = line_style.get_cap(theme);
                             let thickness = line_style.get_thickness(theme);
-                            let points = array.iter().cloned();
+                            let points = array.iter().copied();
                             let triangles = match widget::point_path::triangles(points, cap, thickness) {
                                 None => &[],
                                 Some(iter) => {
@@ -486,7 +485,7 @@ impl<'a> Primitives<'a> {
                     triangles.clear();
 
                     let color = style.get_color(theme);
-                    let points = state.points.iter().cloned();
+                    let points = state.points.iter().copied();
                     match *style {
 
                         ShapeStyle::Fill(_) => {
@@ -658,7 +657,7 @@ impl<'a> Primitives<'a> {
 
                 PrimitiveKind::TrianglesSingleColor { color, triangles } => {
                     let start = primitive_triangles_single_color.len();
-                    primitive_triangles_single_color.extend(triangles.iter().cloned());
+                    primitive_triangles_single_color.extend(triangles);
                     let end = primitive_triangles_single_color.len();
                     let kind = OwnedPrimitiveKind::TrianglesSingleColor {
                         color: color,
@@ -669,7 +668,7 @@ impl<'a> Primitives<'a> {
 
                 PrimitiveKind::TrianglesMultiColor { triangles } => {
                     let start = primitive_triangles_multi_color.len();
-                    primitive_triangles_multi_color.extend(triangles.iter().cloned());
+                    primitive_triangles_multi_color.extend(triangles);
                     let end = primitive_triangles_multi_color.len();
                     let kind = OwnedPrimitiveKind::TrianglesMultiColor {
                         triangle_range: start..end,
@@ -711,7 +710,7 @@ impl<'a> Primitives<'a> {
 
                     // Pack the `line_infos`.
                     let start_line_info_idx = primitive_line_infos.len();
-                    primitive_line_infos.extend(line_infos.iter().cloned());
+                    primitive_line_infos.extend(line_infos);
                     let end_line_info_idx = primitive_line_infos.len();
 
                     let owned_text = OwnedText {

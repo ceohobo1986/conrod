@@ -328,9 +328,9 @@ pub mod glyph {
     ///
     /// Returns `None` if either the given `cursor::Index` `line` or `idx` fields are out of bounds
     /// of the line information yielded by the `line_infos` iterator.
-    pub fn index_after_cursor<I>(mut line_infos: I,
+    pub fn index_after_cursor<'a, I>(mut line_infos: I,
                                  cursor_idx: super::cursor::Index) -> Option<usize>
-        where I: Iterator<Item=super::line::Info>,
+        where I: Iterator<Item=&'a super::line::Info>,
     {
         line_infos
             .nth(cursor_idx.line)
@@ -490,23 +490,6 @@ pub mod cursor {
         font_size: FontSize,
     }
 
-    /// Similarly to `XysPerLine`, yields every possible cursor position within each line of text
-    /// yielded by the given iterator.
-    ///
-    /// Rather than taking an iterator type yielding lines and positioning data, this method
-    /// constructs its own iterator to do so internally, saving some boilerplate involved in common
-    /// `XysPerLine` use cases.
-    ///
-    /// Yields `(xs, y_range)`, where `y_range` is the `Range` occupied by the line across the *y*
-    /// axis and `xs` is every possible cursor position along the *x* axis.
-    #[derive(Clone)]
-    pub struct XysPerLineFromText<'a> {
-        xys_per_line: XysPerLine<'a,
-            std::iter::Zip<std::iter::Cloned<std::slice::Iter<'a, super::line::Info>>,
-            super::line::Rects<std::iter::Cloned<std::slice::Iter<'a, super::line::Info>>>>
-        >,
-    }
-
     /// Each possible cursor position along the *x* axis within a line of text.
     ///
     /// `Xs` iterators are produced by the `XysPerLine` iterator.
@@ -539,8 +522,8 @@ pub mod cursor {
         /// the start of the word that precedes the whitespace
         ///
         /// If `self` is in the middle or end of a word, return the index of the start of that word
-        pub fn previous_word_start<I>(self, text: &str, mut line_infos: I) -> Option<Self>
-            where I: Iterator<Item=super::line::Info>,
+        pub fn previous_word_start<'a, I>(self, text: &str, mut line_infos: I) -> Option<Self>
+            where I: Iterator<Item=&'a super::line::Info>,
         {
             let Index { line, char } = self;
             if char > 0 {
@@ -578,8 +561,8 @@ pub mod cursor {
         /// the end of the word after the whitespace
         ///
         /// If `self` is in the middle or start of a word, return the index of the end of that word
-        pub fn next_word_end<I>(self, text: &str, mut line_infos: I) -> Option<Self>
-            where I: Iterator<Item=super::line::Info>,
+        pub fn next_word_end<'a, I>(self, text: &str, mut line_infos: I) -> Option<Self>
+            where I: Iterator<Item=&'a super::line::Info>,
         {
             let Index { line, char } = self;
             line_infos.nth(line)
@@ -616,8 +599,8 @@ pub mod cursor {
         ///
         /// If `self` is a position other than the start of a line, it will return the position
         /// that is immediately to the left.
-        pub fn previous<I>(self, mut line_infos: I) -> Option<Self>
-            where I: Iterator<Item=super::line::Info>,
+        pub fn previous<'a, I>(self, mut line_infos: I) -> Option<Self>
+            where I: Iterator<Item=&'a super::line::Info>,
         {
             let Index { line, char } = self;
             if char > 0 {
@@ -649,8 +632,8 @@ pub mod cursor {
         ///
         /// If `self` is a position other than the end of a line, it will return the position that
         /// is immediately to the right.
-        pub fn next<I>(self, mut line_infos: I) -> Option<Self>
-            where I: Iterator<Item=super::line::Info>,
+        pub fn next<'a, I>(self, mut line_infos: I) -> Option<Self>
+            where I: Iterator<Item=&'a super::line::Info>,
         {
             let Index { line, char } = self;
             line_infos.nth(line)
@@ -669,8 +652,8 @@ pub mod cursor {
         /// last line.
         ///
         /// If `line_infos` is empty, returns cursor at line=0 char=0.
-        pub fn clamp_to_lines<I>(self, line_infos: I) -> Self
-            where I: Iterator<Item=super::line::Info>,
+        pub fn clamp_to_lines<'a, I>(self, line_infos: I) -> Self
+            where I: Iterator<Item=&'a super::line::Info>,
         {
             let mut last = None;
             for (i, info) in line_infos.enumerate() {
@@ -726,23 +709,23 @@ pub mod cursor {
                                       x_align: super::Justify,
                                       y_align: Align,
                                       line_spacing: Scalar,
-                                      rect: Rect) -> XysPerLineFromText<'a>
+                                      rect: Rect) -> XysPerLine<'a, impl Iterator<Item=(&'a super::line::Info, Rect)> + Clone>
     {
-        let line_infos = line_infos.iter().cloned();
-        let line_rects = super::line::rects(line_infos.clone(), font_size, rect,
+        let line_rects = super::line::rects(line_infos.iter(), font_size, rect,
                                             x_align, y_align, line_spacing);
-        let lines = line_infos.clone();
-        let lines_with_rects = lines.zip(line_rects.clone());
-        XysPerLineFromText {
-            xys_per_line: super::cursor::xys_per_line(lines_with_rects, font, text, font_size),
-        }
+        let lines = line_infos.iter();
+        let lines_with_rects = lines.zip(line_rects);
+        super::cursor::xys_per_line(lines_with_rects, font, text, font_size)
     }
 
     /// Convert the given character index into a cursor `Index`.
-    pub fn index_before_char<I>(line_infos: I, char_index: usize) -> Option<Index>
-        where I: Iterator<Item=super::line::Info>,
+    pub fn index_before_char<'a, I, T>(line_infos: I, char_index: usize) -> Option<Index>
+        where
+            I: Iterator<Item=T>,
+            T: core::borrow::Borrow<super::line::Info>,
     {
         for (i, line_info) in line_infos.enumerate() {
+            let line_info = line_info.borrow();
             let start_char = line_info.start_char;
             let end_char = line_info.end_char();
             if start_char <= char_index && char_index <= end_char {
@@ -839,7 +822,7 @@ pub mod cursor {
 
 
     impl<'a, I> Iterator for XysPerLine<'a, I>
-        where I: Iterator<Item=(super::line::Info, Rect)>,
+        where I: Iterator<Item=(&'a super::line::Info, Rect)>,
     {
         // The `Range` occupied by the line across the *y* axis, along with an iterator yielding
         // each possible cursor position along the *x* axis.
@@ -859,13 +842,6 @@ pub mod cursor {
                 };
                 (xs, y)
             })
-        }
-    }
-
-    impl<'a> Iterator for XysPerLineFromText<'a> {
-        type Item = (Xs<'a, 'a>, Range);
-        fn next(&mut self) -> Option<Self::Item> {
-            self.xys_per_line.next()
         }
     }
 
@@ -1301,13 +1277,13 @@ pub mod line {
     ///
     /// This function assumes that `font_size` is the same `FontSize` used to produce the `Info`s
     /// yielded by the `infos` Iterator.
-    pub fn rects<I>(mut infos: I,
-                    font_size: FontSize,
-                    bounding_rect: Rect,
-                    x_align: super::Justify,
-                    y_align: Align,
-                    line_spacing: Scalar) -> Rects<I>
-        where I: Iterator<Item=Info> + ExactSizeIterator,
+    pub fn rects<'a, I>(mut infos: I,
+                        font_size: FontSize,
+                        bounding_rect: Rect,
+                        x_align: super::Justify,
+                        y_align: Align,
+                        line_spacing: Scalar) -> Rects<I>
+        where I: Iterator<Item=&'a Info> + ExactSizeIterator,
     {
         let num_lines = infos.len();
         let first_rect = infos.next().map(|first_info| {
@@ -1451,8 +1427,8 @@ pub mod line {
         }
     }
 
-    impl<I> Iterator for Rects<I>
-        where I: Iterator<Item=Info>,
+    impl<'a, I> Iterator for Rects<I>
+        where I: Iterator<Item=&'a Info>,
     {
         type Item = Rect;
         fn next(&mut self) -> Option<Self::Item> {

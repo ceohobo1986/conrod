@@ -336,15 +336,15 @@ impl<'a> Widget for TextEdit<'a> {
         // Validate the position of the cursor. Ensure the indices lie within the text.
         match state.cursor {
             Cursor::Idx(index) => {
-                let new_index = index.clamp_to_lines(state.line_infos.iter().cloned());
+                let new_index = index.clamp_to_lines(state.line_infos.iter());
                 if index != new_index {
                     let new_cursor = Cursor::Idx(new_index);
                     state.update(|state| state.cursor = new_cursor);
                 }
             }
             Cursor::Selection { start, end } => {
-                let new_start = start.clamp_to_lines(state.line_infos.iter().cloned());
-                let new_end = end.clamp_to_lines(state.line_infos.iter().cloned());
+                let new_start = start.clamp_to_lines(state.line_infos.iter());
+                let new_end = end.clamp_to_lines(state.line_infos.iter());
                 if start != new_start || end != new_end {
                     let new_cursor = Cursor::Selection {
                         start: new_start,
@@ -447,11 +447,11 @@ impl<'a> Widget for TextEdit<'a> {
                     }
                 };
 
-                let line_infos = infos.iter().cloned();
+                let line_infos = infos;
 
                 let (start_idx, end_idx) = (
-                    text::glyph::index_after_cursor(line_infos.clone(), cursor_start).unwrap_or(0),
-                    text::glyph::index_after_cursor(line_infos.clone(), cursor_end).unwrap_or(0),
+                    text::glyph::index_after_cursor(line_infos.iter(), cursor_start).unwrap_or(0),
+                    text::glyph::index_after_cursor(line_infos.iter(), cursor_end).unwrap_or(0),
                 );
 
                 let new_cursor_char_idx = start_idx + string_char_count;
@@ -478,7 +478,7 @@ impl<'a> Widget for TextEdit<'a> {
             if height < rect.h() || !restrict_to_height {
                 // Determine the new `Cursor` and its position.
                 let new_cursor_idx = {
-                    let line_infos = new_line_infos.iter().cloned();
+                    let line_infos = new_line_infos.iter();
                     text::cursor::index_before_char(line_infos, new_cursor_char_idx).unwrap_or(
                         text::cursor::Index {
                             line: 0,
@@ -512,14 +512,14 @@ impl<'a> Widget for TextEdit<'a> {
                         let closest = closest_cursor_index_and_xy(abs_xy, &display_text, infos, font);
 
                         if let Some((cursor_idx, _)) = closest {
-                            let line_infos = state.line_infos.iter().cloned();
+                            let line_infos = &state.line_infos;
 
                             let (start, end) = (
                                 cursor_idx
-                                    .previous_word_start(&display_text, line_infos.clone())
+                                    .previous_word_start(&display_text, line_infos.iter())
                                     .unwrap_or(cursor_idx), // account for the first position of the text
                                 cursor_idx
-                                    .next_word_end(&display_text, line_infos)
+                                    .next_word_end(&display_text, line_infos.iter())
                                     .unwrap_or(cursor_idx), // account for the last position of the text
                             );
 
@@ -554,7 +554,7 @@ impl<'a> Widget for TextEdit<'a> {
                             // Calculate start/end indices of text to remove
                             let (start, end) = match cursor {
                                 Cursor::Idx(cursor_idx) => {
-                                    let line_infos = state.line_infos.iter().cloned();
+                                    let line_infos = state.line_infos.iter();
 
                                     let end = match (key, delete_word) {
                                         (input::Key::Backspace, false) => {
@@ -577,10 +577,10 @@ impl<'a> Widget for TextEdit<'a> {
                             };
 
                             let (start_idx, end_idx) = {
-                                let line_infos = state.line_infos.iter().cloned();
+                                let line_infos = &state.line_infos;
                                 (
-                                    text::glyph::index_after_cursor(line_infos.clone(), start),
-                                    text::glyph::index_after_cursor(line_infos, end),
+                                    text::glyph::index_after_cursor(line_infos.iter(), start),
+                                    text::glyph::index_after_cursor(line_infos.iter(), end),
                                 )
                             };
 
@@ -592,7 +592,7 @@ impl<'a> Widget for TextEdit<'a> {
 
                                 let new_cursor_char_idx = if start_idx > 0 { start_idx } else { 0 };
                                 let new_cursor_idx = {
-                                    let line_infos = state.line_infos.iter().cloned();
+                                    let line_infos = state.line_infos.iter();
                                     text::cursor::index_before_char(line_infos, new_cursor_char_idx)
                                         .expect("char index was out of range")
                                 };
@@ -635,7 +635,7 @@ impl<'a> Widget for TextEdit<'a> {
                             };
 
                             let new_cursor_idx = {
-                                let line_infos = state.line_infos.iter().cloned();
+                                let line_infos = state.line_infos.iter();
                                 match (key, move_word) {
                                     (input::Key::Left, true) => {
                                         cursor_idx.previous_word_start(&display_text, line_infos)
@@ -695,7 +695,7 @@ impl<'a> Widget for TextEdit<'a> {
                                                 cursor_idx
                                             } else {
                                                 // Move by word from the beginning or end of selection
-                                                let line_infos = state.line_infos.iter().cloned();
+                                                let line_infos = state.line_infos.iter();
                                                 match key {
                                                     input::Key::Left | input::Key::Up => cursor_idx
                                                         .previous_word_start(&display_text, line_infos),
@@ -718,7 +718,7 @@ impl<'a> Widget for TextEdit<'a> {
                             if press.modifiers.contains(input::keyboard::ModifierKey::CTRL) {
                                 let start = text::cursor::Index { line: 0, char: 0 };
                                 let end = {
-                                    let line_infos = state.line_infos.iter().cloned();
+                                    let line_infos = state.line_infos.iter();
                                     text::cursor::index_before_char(
                                         line_infos,
                                         display_text.chars().count(),
@@ -741,13 +741,13 @@ impl<'a> Widget for TextEdit<'a> {
                                             ClipboardContext::new().unwrap();
 
                                         let (start_idx, end_idx) = {
-                                            let line_infos = state.line_infos.iter().cloned();
+                                            let line_infos = &state.line_infos;
                                             (
                                                 text::glyph::index_after_cursor(
-                                                    line_infos.clone(),
+                                                    line_infos.iter(),
                                                     start,
                                                 ),
-                                                text::glyph::index_after_cursor(line_infos, end),
+                                                text::glyph::index_after_cursor(line_infos.iter(), end),
                                             )
                                         };
 
@@ -776,7 +776,7 @@ impl<'a> Widget for TextEdit<'a> {
                         input::Key::E => {
                             // move cursor to end.
                             if press.modifiers.contains(input::keyboard::ModifierKey::CTRL) {
-                                let mut line_infos = state.line_infos.iter().cloned();
+                                let mut line_infos = state.line_infos.iter();
                                 let line = line_infos.len() - 1;
                                 match line_infos.nth(line) {
                                     Some(line_info) => {
@@ -811,7 +811,7 @@ impl<'a> Widget for TextEdit<'a> {
                                     ) {
                                         Some((new_text, new_cursor, new_line_infos)) => {
                                             *display_text.to_mut() = 
-                                            hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or(new_text.clone());
+                                            hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or_else(|| new_text.clone());
                                             cursor = new_cursor;
                                             state.update(|state| state.line_infos = new_line_infos);
 
@@ -824,7 +824,7 @@ impl<'a> Widget for TextEdit<'a> {
                         }
                         input::Key::End => {
                             // move cursor to end.
-                            let mut line_infos = state.line_infos.iter().cloned();
+                            let mut line_infos = state.line_infos.iter();
                             let line = match cursor {
                                 Cursor::Idx(idx) => idx.line,
                                 Cursor::Selection { end, .. } => end.line, // use last line of selection
@@ -841,7 +841,7 @@ impl<'a> Widget for TextEdit<'a> {
 
                         input::Key::Home => {
                             // move cursor to beginning.
-                            let mut line_infos = state.line_infos.iter().cloned();
+                            let mut line_infos = state.line_infos.iter();
                             let line = match cursor {
                                 Cursor::Idx(idx) => idx.line,
                                 Cursor::Selection { start, .. } => start.line, // use first line of selection
@@ -861,7 +861,7 @@ impl<'a> Widget for TextEdit<'a> {
                             match insert_text("\n", cursor, &text, &state.line_infos, font,hide_text) {
                                 Some((new_text, new_cursor, new_line_infos)) => {
                                                                     *display_text.to_mut() = 
-                                 hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or(new_text.clone());
+                                 hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or_else(|| new_text.clone());
 
                                  *text.to_mut() = new_text;
                                     cursor = new_cursor;
@@ -907,7 +907,7 @@ impl<'a> Widget for TextEdit<'a> {
                     match insert_text(&string, cursor, &text, &state.line_infos, font,hide_text) {
                         Some((new_text, new_cursor, new_line_infos)) => {
                             *display_text.to_mut() = 
-                            hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or(new_text.clone());
+                            hide_text.map(|s| s.repeat(new_text.chars().count())).unwrap_or_else(|| new_text.clone());
 
                             *text.to_mut() = new_text;
                             cursor = new_cursor;
@@ -1059,17 +1059,17 @@ impl<'a> Widget for TextEdit<'a> {
             let (start, end) = (std::cmp::min(start, end), std::cmp::max(start, end));
 
             let selected_rects: Vec<Rect> = {
-                let line_infos = state.line_infos.iter().cloned();
-                let lines = line_infos.clone().map(|info| &display_text[info.byte_range()]);
+                let line_infos = &state.line_infos;
+                let lines = line_infos.iter().map(|info| &display_text[info.byte_range()]);
                 let line_rects = text::line::rects(
-                    line_infos.clone(),
+                    line_infos.iter(),
                     font_size,
                     rect,
                     justify,
                     y_align,
                     line_spacing,
                 );
-                let lines_with_rects = lines.zip(line_rects.clone());
+                let lines_with_rects = lines.zip(line_rects);
                 let font = ui.fonts.get(font_id).unwrap();
                 text::line::selected_rects(lines_with_rects, font, font_size, start, end).collect()
             };

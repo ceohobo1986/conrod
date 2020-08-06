@@ -1382,5 +1382,8 @@ pub fn post_update_cache<W>(ui: &mut Ui, requires_redraw: bool, widget: widget::
     ui.widget_graph.post_update_cache(widget);
 
     // Add the widget's `widget::Id` to the set of updated widgets.
+    //
+    // NOTE: Probably won't work properly if an id is updated multiple times (but this was already
+    // the case for pre_update cache before this was exposed).
     ui.updated_widgets.insert(widget_id, requires_redraw);
 }
