@@ -90,14 +90,14 @@ macro_rules! convert_key {
             winit::event::VirtualKeyCode::NumpadComma => {
                 conrod_core::input::keyboard::Key::NumPadDecimal
             }
-            winit::event::VirtualKeyCode::Divide => conrod_core::input::keyboard::Key::NumPadDivide,
-            winit::event::VirtualKeyCode::Multiply => {
+            winit::event::VirtualKeyCode::NumpadDivide => conrod_core::input::keyboard::Key::NumPadDivide,
+            winit::event::VirtualKeyCode::NumpadMultiply => {
                 conrod_core::input::keyboard::Key::NumPadMultiply
             }
-            winit::event::VirtualKeyCode::Subtract => {
+            winit::event::VirtualKeyCode::NumpadSubtract => {
                 conrod_core::input::keyboard::Key::NumPadMinus
             }
-            winit::event::VirtualKeyCode::Add => conrod_core::input::keyboard::Key::NumPadPlus,
+            winit::event::VirtualKeyCode::NumpadAdd => conrod_core::input::keyboard::Key::NumPadPlus,
             winit::event::VirtualKeyCode::NumpadEnter => {
                 conrod_core::input::keyboard::Key::NumPadEnter
             }
