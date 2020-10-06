@@ -240,8 +240,8 @@ macro_rules! convert_window_event {
             },
 
             winit::event::WindowEvent::MouseWheel { delta, .. } => match delta {
-                winit::event::MouseScrollDelta::PixelDelta(logical_position) => {
-                let winit::dpi::LogicalPosition { x, y } = *logical_position;
+                winit::event::MouseScrollDelta::PixelDelta(physical_position) => {
+                let winit::dpi::LogicalPosition { x, y } = physical_position.to_logical::<f64>(hidpi);
                     let x = x as conrod_core::Scalar;
                     let y = -y as conrod_core::Scalar;
                     let motion = conrod_core::input::Motion::Scroll { x: x, y: y };
