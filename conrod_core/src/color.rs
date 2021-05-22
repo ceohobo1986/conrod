@@ -209,9 +209,9 @@ impl Color {
             if      luminance > 0.8 { (r - 0.2, g - 0.2, b - 0.2) }
             else if luminance < 0.2 { (r + 0.2, g + 0.2, b + 0.2) }
             else {
-                (clampf32((1.0 - r) * 0.5 * r + r),
-                 clampf32((1.0 - g) * 0.1 * g + g),
-                 clampf32((1.0 - b) * 0.1 * b + b))
+                (clampf32((1.0 - r) * 0.3 * r + r),
+                 clampf32((1.0 - g) * 0.3 * g + g),
+                 clampf32((1.0 - b) * 0.3 * b + b))
             }
         };
         let a = clampf32((1.0 - a) * 0.5 + a);
@@ -223,12 +223,12 @@ impl Color {
         let luminance = self.luminance();
         let Rgba(r, g, b, a) = self.to_rgb();
         let (r, g, b) = {
-            if      luminance > 0.8 { (r      , g - 0.2, b - 0.2) }
+            if      luminance > 0.8 { (r - 0.2, g - 0.2, b - 0.2) }
             else if luminance < 0.2 { (r + 0.4, g + 0.2, b + 0.2) }
             else {
-                (clampf32((1.0 - r) * 0.75 + r),
-                 clampf32((1.0 - g) * 0.25 + g),
-                 clampf32((1.0 - b) * 0.25 + b))
+                (clampf32((1.0 - r) * 0.50 + r),
+                 clampf32((1.0 - g) * 0.50 + g),
+                 clampf32((1.0 - b) * 0.50 + b))
             }
         };
         let a = clampf32((1.0 - a) * 0.75 + a);
